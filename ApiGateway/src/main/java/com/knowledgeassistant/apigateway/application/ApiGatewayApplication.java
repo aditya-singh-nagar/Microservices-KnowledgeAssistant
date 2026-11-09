@@ -1,10 +1,9 @@
-package com.knowledgeassistant.apigateway;
+package com.knowledgeassistant.apigateway.application;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
-@EnableDiscoveryClient
+//@EnableDiscoveryClient is not required as in modern spring it is automatically enable service discovery
 @SpringBootApplication
 public class ApiGatewayApplication {
 
