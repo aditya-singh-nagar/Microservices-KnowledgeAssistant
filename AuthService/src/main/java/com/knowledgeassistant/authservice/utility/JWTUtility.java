@@ -17,10 +17,11 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JWTUtility {
 
-    @Value("${jwt.secret:${secret:}}")
+    @Value("${jwt.secret}")
     private String secretKey ;
 
-    private static final long ACCESS_TOKEN_VALIDITY = 15*60*1000;
+    @Value("${jwt.access-token.expiration:900000}")
+    private long accessTokenValidity;
     
     public SecretKey getKey () {
         return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
@@ -43,7 +44,7 @@ public class JWTUtility {
                 .claims(claims)
                 .subject(email)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY))
+                .expiration(new Date(System.currentTimeMillis() + accessTokenValidity))
                 .signWith(getKey())
                 .compact();
 

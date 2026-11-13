@@ -19,7 +19,7 @@ public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http.csrf(csrf->csrf.disable()).sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(auth->auth.requestMatchers("/api/auth/**").permitAll().requestMatchers("/actuator**").permitAll().anyRequest()
+				.authorizeHttpRequests(auth->auth.requestMatchers("/api/auth/**").permitAll().requestMatchers("/actuator/**").permitAll().requestMatchers("/api/auth/**", "/api/internal/**").permitAll().anyRequest()
 						.authenticated()).build();
 	}
 	

@@ -1,4 +1,4 @@
-package com.example.EurekaServer;
+package com.knowledgeassistant.eurekaserver;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
