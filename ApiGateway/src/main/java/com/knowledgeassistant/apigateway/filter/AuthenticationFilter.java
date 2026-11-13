@@ -36,7 +36,7 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 		this.webClientBuilder = webClientBuilder;
 	}
 	
-	private static final List<String> OPEN_ENDPOINTS = List.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/eureka");
+	private static final List<String> OPEN_ENDPOINTS = List.of("/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/eureka");
 
 	@Override
 	public int getOrder() {

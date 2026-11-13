@@ -119,26 +119,34 @@ public class AuthService {
     }
 
     public void logout(String accessToken, RefreshTokenRequestDto dto) {
-        if (accessToken != null && !accessToken.isBlank()) {
-            try {
-                Date expiration = jwtUtil.extractExpiration(accessToken);
-                tokenBlacklistService.blackListedToken(accessToken, expiration);
-            } catch (JwtException | IllegalArgumentException ignored) {
-                // Token already expired or malformed; still revoke refresh token
-            }
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new BadRequestException("Access token is required for logout");
         }
+        if (tokenBlacklistService.isBlackListed(accessToken)) {
+            throw new BadRequestException("User is already logged out. Token has already been revoked.");
+        }
+
+        try {
+            Date expiration = jwtUtil.extractExpiration(accessToken);
+            tokenBlacklistService.blackListedToken(accessToken, expiration);
+        } catch (JwtException | IllegalArgumentException ignored) {
+        }
+
         if (dto != null && dto.getRefreshToken() != null) {
             refreshTokenService.revokeToken(dto.getRefreshToken());
         }
     }
 
     public void logout(String accessToken, Long userId) {
-        User user = userRepo.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User with the ID does not exist"));
-
         if (accessToken == null || accessToken.isBlank()) {
             throw new UnauthorizedException("Authorization access token is required for logout");
         }
+        if (tokenBlacklistService.isBlackListed(accessToken)) {
+            throw new BadRequestException("User is already logged out. Token has already been revoked.");
+        }
+
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User with the ID does not exist"));
 
         String emailFromToken = jwtUtil.extractEmail(accessToken);
         if (emailFromToken == null || !emailFromToken.equals(user.getEmail())) {
