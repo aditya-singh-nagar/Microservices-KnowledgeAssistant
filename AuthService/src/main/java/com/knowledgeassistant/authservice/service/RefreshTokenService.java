@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.knowledgeassistant.authservice.customexception.BadRequestException;
 import com.knowledgeassistant.authservice.customexception.ResourceNotFoundException;
 import com.knowledgeassistant.authservice.customexception.UnauthorizedException;
 import com.knowledgeassistant.authservice.entities.RefreshToken;
@@ -54,10 +55,13 @@ public class RefreshTokenService {
 	}
 	
 	public void revokeToken(String token) {
-		RefreshToken rToken = refRepo.findByToken(token)
-				.orElseThrow(()-> new ResourceNotFoundException("Refresh token not found"));
-		rToken.setRevoked(true);
-		refRepo.save(rToken);
+	    RefreshToken rToken = refRepo.findByToken(token)
+	            .orElseThrow(() -> new ResourceNotFoundException("Refresh token not found"));
+	    if (rToken.isRevoked()) {
+	        throw new BadRequestException("Refresh token is already revoked.");
+	    }
+	    rToken.setRevoked(true);
+	    refRepo.save(rToken);
 	}
 	
 	public void revokeToken(User user) {
