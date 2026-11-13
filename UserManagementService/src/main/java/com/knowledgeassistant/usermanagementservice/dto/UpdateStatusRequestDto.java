@@ -1,11 +1,15 @@
 package com.knowledgeassistant.usermanagementservice.dto;
 
 import com.knowledgeassistant.usermanagementservice.enums.AccountStatus;
-import jakarta.validation.constraints.NotNull;
+
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class UpdateStatusRequestDto {
-    @NotNull(message = "Account status is required")
-    private AccountStatus status;
+    private AccountStatus accountStatus;
+    private String approvedBy;
 }

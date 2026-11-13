@@ -1,5 +1,6 @@
 package com.knowledgeassistant.authservice.service;
 
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -8,6 +9,10 @@ import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.knowledgeassistant.authservice.customexception.BadRequestException;
+import com.knowledgeassistant.authservice.customexception.ForbiddenException;
+import com.knowledgeassistant.authservice.customexception.ResourceNotFoundException;
+import com.knowledgeassistant.authservice.customexception.UnauthorizedException;
 import com.knowledgeassistant.authservice.dto.AuthResponseDto;
 import com.knowledgeassistant.authservice.dto.LoginDto;
 import com.knowledgeassistant.authservice.dto.RefreshTokenRequestDto;
@@ -22,11 +27,12 @@ import com.knowledgeassistant.authservice.repository.RoleRepository;
 import com.knowledgeassistant.authservice.repository.UserRepository;
 import com.knowledgeassistant.authservice.utility.JWTUtility;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 
 @Service
-@Transactional
+@Transactional(dontRollbackOn = UnauthorizedException.class)
 @AllArgsConstructor
 public class AuthService {
 
@@ -34,25 +40,26 @@ public class AuthService {
 	private final UserRepository userRepo;
 	private final RoleRepository roleRepo;
 	private final RefreshTokenService refreshTokenService;
+	private final TokenBlackListService tokenBlacklistService;
     private final PasswordEncoder passwordEncoder;
     private final JWTUtility jwtUtil;
     
     public RegisterResponseDto register(RegisterRequestDto dto) {
     	if (userRepo.existsByEmail(dto.getEmail())) {
-            throw new IllegalArgumentException("User already exists with email : " + dto.getEmail());
+            throw new BadRequestException("User already exists with email : " + dto.getEmail());
         }
     	if(userRepo.existsByUserName(dto.getUsername())) {
-    		throw new IllegalArgumentException("User already exists with username : " + dto.getUsername());
+    		throw new BadRequestException("User already exists with username : " + dto.getUsername());
     	}
     	
     	String rawRole = dto.getRole().trim().toUpperCase();
     	final String requestedRole = rawRole.startsWith("ROLE_") ? rawRole : "ROLE_" + rawRole;
     	
     	if(requestedRole.equals("ROLE_ADMIN")) {
-    		throw new IllegalArgumentException("Users cannot register themselves as ADMIN");
+    		throw new ForbiddenException("Users cannot register themselves as ADMIN");
     	}
     	Role role = roleRepo.findByRole(requestedRole)
-                .orElseThrow(() -> new IllegalArgumentException("Role not found in database: " + requestedRole));
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found in database: " + requestedRole));
     	
     	 User user = new User();
          user.setUserName(dto.getUsername());
@@ -75,62 +82,76 @@ public class AuthService {
                  .email(saved.getEmail())
                  .accountStatus(saved.getAccountStatus())
                  .roles(saved.getRoles().stream().map(Role::getRole).collect(Collectors.toSet()))
-                 
+                 .createdAt(saved.getCreatedAt())
                  .build();
     }
     
     public AuthResponseDto login(LoginDto dto) {
-    	User user = userRepo.findByEmail(dto.getEmail()).orElseThrow(()-> new IllegalArgumentException("User not found with email: " + dto.getEmail()));
+    	User user = userRepo.findByEmail(dto.getEmail())
+    			.orElseThrow(()-> new UnauthorizedException("User not found with email: " + dto.getEmail()));
     	if(!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-    		throw new IllegalArgumentException("Invalid password");
+    		throw new UnauthorizedException("Invalid password");
     	}
     	if (user.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Account is not active. Current status: " + user.getAccountStatus());
+            throw new ForbiddenException("Account is not active. Current status: " + user.getAccountStatus());
         }
-    	List<String> roles = user.getRoles().stream().map(m->m.getRole()).collect(Collectors.toList());
+    	List<String> roles = user.getRoles().stream().map(Role::getRole).collect(Collectors.toList());
     	String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUserName(), user.getEmail(), roles);
     	RefreshToken refreshToken = refreshTokenService.generateRefreshToken(user.getEmail());
     	
-//    	String primaryRole = user.getRoles().stream()
-//                .findFirst()
-//                .map(Role::getRole)
-//                .orElse("ROLE_PUBLIC");
     	return AuthResponseDto.builder().accessToken(accessToken).refreshToken(refreshToken.getToken()).build();
     }
-	
-// public AuthResponseDto refreshAccessToken(RefreshTokenRequestDto req) {
-//    	
-//    	RefreshToken token = refRepo.findByToken(req.getRefreshToken()).orElseThrow(()-> new RuntimeException("Refresh token does not exist in db"));
-//    	
-//    	refreshTokenService.verifyExpiration(token);
-//    	
-//    	User user = token.getUser();
-//    	List<String> roles = user.getRoles().stream().map(m->m.getRole()).collect(Collectors.toList());
-//    	
-//    	//for genereting new refresh toeken
-//    	String newAccessToken = jwtUtil.generateAccessToken(user.getUserName(), user.getEmail(), roles);
-//    	
-//    	return AuthResponseDto.builder().refreshToken(token.getToken()).accessToken(newAccessToken).build();
-//    }
     
     public AuthResponseDto refreshAccessToken(RefreshTokenRequestDto dto) {
         RefreshToken refreshToken = refRepo.findByToken(dto.getRefreshToken())
                 .map(refreshTokenService::verifyExpiration)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
         User user = refreshToken.getUser();
         if (user.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Account is not active. Current status: " + user.getAccountStatus());
+            throw new ForbiddenException("Account is not active. Current status: " + user.getAccountStatus());
         }
-        List<String> roles = user.getRoles().stream().map(role->role.getRole()).collect(Collectors.toList());
+        List<String> roles = user.getRoles().stream().map(Role::getRole).collect(Collectors.toList());
         String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getUserName(), user.getEmail(), roles);
-//        String primaryRole = user.getRoles().stream()
-//                .findFirst()
-//                .map(Role::getRole)
-//                .orElse("ROLE_PUBLIC");
         return AuthResponseDto.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(refreshToken.getToken())
                 .build();
+    }
+
+    public void logout(String accessToken, RefreshTokenRequestDto dto) {
+        if (accessToken != null && !accessToken.isBlank()) {
+            try {
+                Date expiration = jwtUtil.extractExpiration(accessToken);
+                tokenBlacklistService.blackListedToken(accessToken, expiration);
+            } catch (JwtException | IllegalArgumentException ignored) {
+                // Token already expired or malformed; still revoke refresh token
+            }
+        }
+        if (dto != null && dto.getRefreshToken() != null) {
+            refreshTokenService.revokeToken(dto.getRefreshToken());
+        }
+    }
+
+    public void logout(String accessToken, Long userId) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User with the ID does not exist"));
+
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new UnauthorizedException("Authorization access token is required for logout");
+        }
+
+        String emailFromToken = jwtUtil.extractEmail(accessToken);
+        if (emailFromToken == null || !emailFromToken.equals(user.getEmail())) {
+            throw new ForbiddenException("You can only logout yourself!");
+        }
+
+        Date expiration = jwtUtil.extractExpiration(accessToken);
+        tokenBlacklistService.blackListedToken(accessToken, expiration);
+        refreshTokenService.revokeToken(user);
+    }
+
+    public boolean isTokenBlacklisted(String token) {
+        return tokenBlacklistService.isBlackListed(token);
     }
 	
 }

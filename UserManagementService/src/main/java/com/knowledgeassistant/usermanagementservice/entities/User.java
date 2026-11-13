@@ -1,7 +1,11 @@
 package com.knowledgeassistant.usermanagementservice.entities;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+
+import org.hibernate.annotations.UpdateTimestamp;
 
 import com.knowledgeassistant.usermanagementservice.enums.AccountStatus;
 
@@ -55,4 +59,14 @@ public class User {
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<Role> roles = new HashSet<>();
+    
+    @Column(name = "approved_at")
+    private LocalDate approvedAt;
+    
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+    
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
 }
